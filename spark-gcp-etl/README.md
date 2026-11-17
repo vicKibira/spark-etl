@@ -70,7 +70,7 @@ Docker, Terraform >= 1.5, `gcloud`, and a GCP project with billing enabled.
 chmod +x bootstrap.sh
 ./bootstrap.sh pizza_sales_etl.py
 cd spark-gcp-etl
-cp ../pizza_sales_etl.py apps/pizza_sales_etl.py   # make sure the fixed ETL is used
+
 ```
 
 Edit `.env`:
@@ -82,7 +82,7 @@ BUCKET=your-existing-bucket   # Terraform only reads it, never creates or delete
 CLUSTER_NAME=pizza-etl
 ```
 
-Put the CSV in `data/pizza_sales.csv`.
+Put your CSV in `data/pizza_sales.csv`.
 
 Find your bucket's location:
 
@@ -98,10 +98,10 @@ gcloud storage buckets describe "gs://$BUCKET" --format="value(location)"
 ./run.sh local    # run ETL on data/pizza_sales.csv
 ```
 
-Output: `data/output/pizza_sales/`. In a Codespace, open the Ports tab for 8080 and 4040.
+Output: `data/output/pizza_sales/`. If in a Github Codespace, open the Ports tab for 8080 and 4040.
 
 ```bash
-./run.sh logs     # follow logs
+./run.sh logs     # follow logs(show logs)
 ./run.sh down     # stop
 ```
 
