@@ -1,0 +1,30 @@
+x-spark-common: &spark-common
+  build: .
+  image: my-spark:4.0.0
+  volumes:
+    - ./apps:/opt/apps
+    - ./data:/opt/data
+    - ./keys:/opt/keys:ro
+
+services:
+  spark-master:
+    <<: *spark-common
+    container_name: spark-master
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+    environment:
+      - SPARK_MASTER_HOST=spark-master
+    ports:
+      - "8080:8080"   # master UI
+      - "7077:7077"   # cluster port
+      - "4040:4040"   # live job UI (driver)
+
+  spark-worker:
+    <<: *spark-common
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    environment:
+      - SPARK_WORKER_CORES=2
+      - SPARK_WORKER_MEMORY=2g
+    depends_on:
+      - spark-master
+    deploy:
+      replicas: 2

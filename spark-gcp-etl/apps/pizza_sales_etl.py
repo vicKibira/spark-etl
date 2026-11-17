@@ -14,6 +14,7 @@ optional BigQuery connector. Memory-conscious version: avoids repeated count()
 actions and caching on the single-node cluster.
 """
 import logging
+import sys
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql import Window
@@ -25,11 +26,11 @@ COLS = ["pizza_id", "order_id", "pizza_name_id", "quantity", "order_date",
 
 
 # Change these settings here. No command-line arguments are needed.
-SOURCE_PATH = "gs://project-27c25bbf-b46d-4bff-abd-datalake/scripts/pizza_sales.csv"
-OUTPUT_PATH = "gs://project-27c25bbf-b46d-4bff-abd-datalake/output/pizza_sales"
+SOURCE_PATH = sys.argv[1] if len(sys.argv) > 1 else "/opt/data/pizza_sales.csv"
+OUTPUT_PATH = sys.argv[2] if len(sys.argv) > 2 else "/opt/data/output/pizza_sales"
 DATE_FORMAT = "M/d/yyyy"
 WRITE_MODE = "overwrite"              # "overwrite" or "append"
-SHUFFLE_PARTITIONS = 200
+SHUFFLE_PARTITIONS = int(sys.argv[3]) if len(sys.argv) > 3 else 8
 SAMPLE_FRACTION = 1.0                 # 1.0 = full dataset; e.g. 0.1 = 10% sample
 
 # BigQuery is optional. Leave BQ_PROJECT_ID = None to skip it.
@@ -78,13 +79,18 @@ def save_pizza_data(df, path, mode="overwrite", partitions=None):
 def clean_pizza_sales(raw_sales, date_format):
     # SAFE conversions: malformed values become null, then are quarantined.
     parsed = raw_sales.select(
-        F.expr("try_cast(trim(pizza_id) as bigint)").alias("pizza_id"),
-        F.expr("try_cast(trim(order_id) as bigint)").alias("order_id"),
+        F.expr("try_cast(try_cast(trim(pizza_id) as decimal(20,2)) as bigint)").alias("pizza_id"),
+        F.expr("try_cast(try_cast(trim(order_id) as decimal(20,2)) as bigint)").alias("order_id"),
         F.nullif(F.trim("pizza_name_id"), F.lit("")).alias("pizza_name_id"),
-        F.expr("try_cast(trim(quantity) as int)").alias("quantity"),
-        F.to_date(F.trim("order_date"), date_format).alias("order_date"),
-        F.to_timestamp(F.concat_ws(" ", F.trim("order_date"), F.trim("order_time")),
-                       date_format + " HH:mm:ss").alias("order_timestamp"),
+        F.expr("try_cast(try_cast(trim(quantity) as decimal(10,2)) as int)").alias("quantity"),
+        F.coalesce(
+            F.expr("try_to_timestamp(trim(order_date), 'd/M/yyyy')"),
+            F.expr("try_to_timestamp(trim(order_date), 'd-M-yyyy')")
+        ).cast("date").alias("order_date"),
+        F.coalesce(
+            F.expr("try_to_timestamp(concat_ws(' ', trim(order_date), trim(order_time)), 'd/M/yyyy H:mm:ss')"),
+            F.expr("try_to_timestamp(concat_ws(' ', trim(order_date), trim(order_time)), 'd-M-yyyy H:mm:ss')")
+        ).alias("order_timestamp"),
         F.expr("try_cast(trim(unit_price) as decimal(10,2))").alias("unit_price"),
         F.expr("try_cast(trim(total_price) as decimal(12,2))").alias("total_price"),
         F.upper(F.nullif(F.trim("pizza_size"), F.lit(""))).alias("pizza_size"),
